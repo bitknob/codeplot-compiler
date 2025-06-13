@@ -8,7 +8,20 @@ const winston = require('winston');
 const { Writable } = require('stream');
 
 const app = express();
-const docker = new dockerode();
+let docker;
+try {
+  docker = new dockerode({ socketPath: '/var/run/docker.sock' });
+  docker.ping((err) => {
+    if (err) {
+      logger.error(`Docker daemon ping failed: ${err.message}`);
+    } else {
+      logger.info('Docker daemon connection established');
+    }
+  });
+} catch (err) {
+  logger.error(`Failed to initialize dockerode: ${err.message}`);
+}
+
 const PORT = process.env.PORT || 3000;
 
 // Configure Winston logger
@@ -38,6 +51,11 @@ process.on('unhandledRejection', (reason) => {
 
 // Middleware
 app.use(bodyParser.json());
+
+// Health check route for Render
+app.get('/', (req, res) => {
+  res.status(200).json({ status: 'healthy' });
+});
 
 // Supported languages and their configurations
 const languageConfigs = {
@@ -126,6 +144,11 @@ app.post('/api/execute', async (req, res) => {
     return res.status(400).json({ error: 'Unsupported language' });
   }
 
+  if (!docker) {
+    logger.error('Docker daemon is not available');
+    return res.status(500).json({ error: 'Docker service unavailable' });
+  }
+
   const config = languageConfigs[language];
   const jobId = uuidv4();
   const workDir = path.join(__dirname, 'temp', jobId);
@@ -173,7 +196,7 @@ app.post('/api/execute', async (req, res) => {
         },
         Tty: false,
         OpenStdin: true,
-        Detach: true, // Run in detached mode
+        Detach: true,
       });
     } catch (createErr) {
       logger.error(`Failed to create container: ${createErr.message}`);
@@ -321,10 +344,6 @@ app.post('/api/execute', async (req, res) => {
     await fs.rm(workDir, { recursive: true, force: true });
     res.status(500).json({ error: err.message });
   }
-});
-
-app.get('/', async (req, res) => {
-  res.json('ok')
 });
 
 // Start server

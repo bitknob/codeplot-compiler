@@ -20,8 +20,8 @@ COPY server.js .
 # Create logs and temp directories
 RUN mkdir -p logs temp
 
+# Start Docker daemon and Node.js app
+CMD ["/bin/sh", "-c", "dockerd --host=unix:///var/run/docker.sock & sleep 5 && npm start"]
+
 # Expose port
 EXPOSE 3000
-
-# Start the app
-CMD ["npm", "start"]
