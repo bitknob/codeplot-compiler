@@ -9,18 +9,36 @@ const { Writable } = require('stream');
 
 const app = express();
 let docker;
-try {
-  docker = new dockerode({ socketPath: '/var/run/docker.sock' });
-  docker.ping((err) => {
-    if (err) {
-      logger.error(`Docker daemon ping failed: ${err.message}`);
-    } else {
+const MAX_RETRIES = 5;
+const RETRY_DELAY = 2000;
+
+async function initializeDocker() {
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      docker = new dockerode({ socketPath: '/var/run/docker.sock' });
+      await new Promise((resolve, reject) => {
+        docker.ping((err) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve();
+          }
+        });
+      });
       logger.info('Docker daemon connection established');
+      return;
+    } catch (err) {
+      logger.error(`Docker connection attempt ${attempt} failed: ${err.message}`);
+      if (attempt === MAX_RETRIES) {
+        logger.error('Failed to initialize dockerode after max retries');
+        return;
+      }
+      await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY));
     }
-  });
-} catch (err) {
-  logger.error(`Failed to initialize dockerode: ${err.message}`);
+  }
 }
+
+initializeDocker();
 
 const PORT = process.env.PORT || 3000;
 
