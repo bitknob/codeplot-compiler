@@ -1,0 +1,3 @@
+FROM rust:latest
+WORKDIR /app
+CMD ["/bin/sh", "-c", "rustc -o program program.rs && ./program"]
