@@ -1,9 +1,7 @@
-FROM node:20
+FROM docker:dind
 
-# Install Docker for Docker-in-Docker
-RUN apt-get update && apt-get install -y \
-    docker.io \
-    && rm -rf /var/lib/apt/lists/*
+# Install Node.js and npm
+RUN apk add --no-cache nodejs npm
 
 # Set working directory
 WORKDIR /app
