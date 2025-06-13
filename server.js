@@ -323,6 +323,10 @@ app.post('/api/execute', async (req, res) => {
   }
 });
 
+app.get('/', async (req, res) => {
+  res.json('ok')
+});
+
 // Start server
 app.listen(PORT, () => {
   logger.info(`Server running on port ${PORT}`);
