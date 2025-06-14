@@ -8,38 +8,7 @@ const winston = require('winston');
 const { Writable } = require('stream');
 
 const app = express();
-let docker;
-const MAX_RETRIES = 5;
-const RETRY_DELAY = 2000;
-
-async function initializeDocker() {
-  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-    try {
-      docker = new dockerode({ socketPath: '/var/run/docker.sock' });
-      await new Promise((resolve, reject) => {
-        docker.ping((err) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve();
-          }
-        });
-      });
-      logger.info('Docker daemon connection established');
-      return;
-    } catch (err) {
-      logger.error(`Docker connection attempt ${attempt} failed: ${err.message}`);
-      if (attempt === MAX_RETRIES) {
-        logger.error('Failed to initialize dockerode after max retries');
-        return;
-      }
-      await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY));
-    }
-  }
-}
-
-initializeDocker();
-
+const docker = new dockerode();
 const PORT = process.env.PORT || 3000;
 
 // Configure Winston logger
@@ -69,11 +38,6 @@ process.on('unhandledRejection', (reason) => {
 
 // Middleware
 app.use(bodyParser.json());
-
-// Health check route for Render
-app.get('/', (req, res) => {
-  res.status(200).json({ status: 'healthy' });
-});
 
 // Supported languages and their configurations
 const languageConfigs = {
@@ -162,11 +126,6 @@ app.post('/api/execute', async (req, res) => {
     return res.status(400).json({ error: 'Unsupported language' });
   }
 
-  if (!docker) {
-    logger.error('Docker daemon is not available');
-    return res.status(500).json({ error: 'Docker service unavailable' });
-  }
-
   const config = languageConfigs[language];
   const jobId = uuidv4();
   const workDir = path.join(__dirname, 'temp', jobId);
@@ -214,7 +173,7 @@ app.post('/api/execute', async (req, res) => {
         },
         Tty: false,
         OpenStdin: true,
-        Detach: true,
+        Detach: true, // Run in detached mode
       });
     } catch (createErr) {
       logger.error(`Failed to create container: ${createErr.message}`);
